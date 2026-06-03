@@ -1,78 +1,111 @@
 # RawAccel Profile Switcher
 
-A tiny Windows tray app for managing your [RawAccel](https://github.com/a1xd/rawaccel)
+A small Windows tray app for managing [RawAccel](https://github.com/a1xd/rawaccel)
 mouse settings. Keep several profiles (e.g. **Gaming**, **Desktop**, **FPS**) and
-switch between them in two clicks from the system tray.
-
-A profile is simply a RawAccel settings `.json` file. Switching a profile applies
-it to the driver by running RawAccel's `writer.exe` for you.
+switch between them in one click from the system tray — no need to open RawAccel.
 
 ---
 
-## Features
+## How it works
 
-- 🗂️ **Profile slots** – create, rename and delete profiles (each is a `.json` file).
-- ⚡ **One-click switching** – pick a profile from the tray menu to apply it instantly.
-- 🖱️ **Tray app** – runs quietly in the background; closing the window doesn't quit it.
-- 📁 **Point at your install** – tell it where your RawAccel folder is, once.
+RawAccel is a **kernel driver**. The RawAccel GUI (`rawaccel.exe`) is just where you
+tune your curves — clicking **Apply** saves them to `settings.json` and loads them
+into the driver. The driver keeps running after you close the GUI.
+
+This app snapshots those settings as named **profiles** and switches between them by
+calling `writer.exe` (bundled with RawAccel), which talks directly to the driver.
+**You don't need RawAccel open to switch profiles.** Tune your curves once, save the
+profile, close RawAccel, and flip between profiles from the tray.
+
+Switching is **immediate** — the driver applies the new settings the moment
+`writer.exe` runs. No relaunch, no reboot.
 
 ---
 
-## Install (the easy way)
+## Install
 
 1. Download **`RawAccelProfileSwitcher.exe`** from the
    [latest release](../../releases/latest).
-2. Double-click it to run. No installer needed.
-3. The icon appears in your system tray (bottom-right, near the clock).
+2. Double-click it — no installer needed. The icon appears in the system tray.
 
-> You need a working [RawAccel](https://github.com/a1xd/rawaccel) install. This app
-> only manages profiles and applies them — it does **not** include the driver.
+> You need a working [RawAccel](https://github.com/a1xd/rawaccel) install.
+> This app only manages profiles; it does **not** include the driver.
 
 ---
 
-## How profiles work
-
-RawAccel is a **driver**. The RawAccel GUI (`rawaccel.exe`) is just where you
-tune your curves — when you click **Apply** it saves them to `settings.json` and
-loads them into the driver. The driver keeps running after you close the GUI.
-
-This app saves snapshots of those settings as **profiles** and switches between
-them with `writer.exe`, which talks straight to the driver. So **you don't need
-RawAccel open to switch profiles** — set up your curves once, close RawAccel, and
-flip profiles from the tray.
-
 ## First-time setup
 
-1. Click the tray icon and choose **Open settings**.
-2. Click **Browse…** and select your **RawAccel folder** (the one that contains
-   `writer.exe`).
-3. In RawAccel, tune your settings and click **Apply**. Then in this app click
-   **Save current…** and name the profile (e.g. *Gaming*).
-4. Repeat step 3 for each setup you want (e.g. *Desktop*, *FPS*).
-5. Select a profile and click **Set active** (or pick it from the tray menu) to
-   switch instantly.
+1. Click the tray icon and choose **Open settings** (or double-click it).
+2. Click **Browse…** and select your **RawAccel folder** — the one that contains
+   `writer.exe`.
+3. In the RawAccel GUI, tune your settings and click **Apply**. Then, back in this
+   app, click **Save current…** and give the profile a name (e.g. *Gaming*).
+4. Repeat for each setup you want (e.g. *Desktop*, *FPS*).
+5. Select a profile in the list and click **Set active** to switch to it, or pick it
+   directly from the tray menu.
 
-Selecting a profile shows its key values (sensitivity, rotation, etc.) so you can
-tell them apart. To change a profile later, re-tune in RawAccel, click Apply, then
-select the profile and hit **Update**.
+---
 
-> **Note:** if RawAccel's own window is open when you switch, it won't visually
-> refresh (it only reads `settings.json` on startup) — but your mouse feel changes
-> immediately. The switch always affects the live driver.
+## The main window
 
-### Where are my profiles stored?
+![Main window](assets/main-window.png)
 
-Inside your RawAccel folder, so they live next to `writer.exe`:
+- **Profiles list** — all saved profiles. The active one is marked with a bullet (•).
+  Clicking a profile shows its key values in the **Selected profile** panel below.
+- **Save current…** — snapshots RawAccel's current `settings.json` into a new named
+  profile.
+- **Update** — re-snapshots your current RawAccel settings over the selected profile
+  (use this after you tweak and Apply in RawAccel).
+- **Rename / Delete** — rename or remove the selected profile file.
+- **Set active** — applies the selected profile to the driver immediately via
+  `writer.exe`.
+- **Status bar** (bottom) — always shows which profile is currently active.
+
+---
+
+## The tray menu
+
+![Tray menu](assets/tray-menu.png)
+
+Right-clicking the tray icon shows:
+
+- **Open settings** — opens the main window. Double-clicking the icon does the same.
+- **Profile list** — every saved profile as a radio item. The active profile is
+  checked. Click any profile to switch to it immediately.
+- **Quit** — exits the app.
+
+---
+
+## Actions reference
+
+| Action            | What happens                                                                |
+| ----------------- | --------------------------------------------------------------------------- |
+| **Save current…** | Copies RawAccel's `settings.json` into a new `<name>.json` profile file.   |
+| **Update**        | Re-copies current RawAccel settings over an existing profile file.          |
+| **Rename**        | Renames the profile's `.json` file.                                         |
+| **Delete**        | Deletes the profile's `.json` file.                                         |
+| **Set active**    | Runs `writer.exe <profile>.json` — applies the profile to the driver now.   |
+| Tray profile item | Same as Set active — one click from anywhere.                               |
+
+---
+
+## Where files live
 
 ```
 <your RawAccel folder>\
 ├── writer.exe
-├── settings.json       # RawAccel's current settings
-└── profiles\           # one .json file per profile (created by this app)
+├── settings.json        ← RawAccel's current driver state
+└── profiles\            ← one .json per profile (created by this app)
+    ├── Gaming.json
+    ├── Desktop.json
+    └── ...
 ```
 
-Your app preferences (RawAccel folder, active profile) live in
-`%APPDATA%\RawAccelProfileSwitcher\config.json`.
+App preferences (RawAccel folder path, active profile name) are stored in:
+
+```
+%APPDATA%\RawAccelProfileSwitcher\config.json
+```
 
 ---
 
@@ -87,47 +120,34 @@ pip install -r requirements.txt
 python main.py
 ```
 
----
-
-## Build the .exe yourself
+## Build the .exe
 
 ```bash
 pip install -r requirements-dev.txt
 build.bat
 ```
 
-Or directly with PyInstaller:
+Or directly:
 
 ```bash
 pyinstaller --noconfirm RawAccelProfileSwitcher.spec
 ```
 
-The finished app lands at `dist\RawAccelProfileSwitcher.exe`.
-
----
-
-## How it works
-
-| Action            | What happens                                                              |
-| ----------------- | ------------------------------------------------------------------------- |
-| **Save current…** | Snapshots RawAccel's `settings.json` into a new `<name>.json` profile.    |
-| **Update**        | Re-snapshots your current RawAccel settings over the selected profile.    |
-| Rename / Delete   | Renames or removes that `.json` file.                                     |
-| **Set active**    | Runs `writer.exe <profile>.json`, which applies it straight to the driver. |
+Output: `dist\RawAccelProfileSwitcher.exe`
 
 ---
 
 ## Development
-
-Run the test suite (covers the non-GUI logic):
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
 
+Tests cover all non-GUI logic (profile management, RawAccel integration).
+
 ---
 
 ## License
 
-[MIT](LICENSE) — version **0.1.2**.
+[MIT](LICENSE) — version **0.1.3**
