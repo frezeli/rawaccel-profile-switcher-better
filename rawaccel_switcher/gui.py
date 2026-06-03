@@ -13,7 +13,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from . import __app_name__, __version__
 from .config import Config
 from .profiles import ProfileError, ProfileManager, summarize_profile
-from . import rawaccel
+from . import rawaccel, startup
 
 
 class MainWindow:
@@ -53,6 +53,18 @@ class MainWindow:
         ttk.Button(dir_frame, text="Browse…", command=self.browse_dir).pack(
             side="left", padx=(0, 8), pady=8
         )
+
+        # Options
+        opts_frame = ttk.Frame(self.root)
+        opts_frame.pack(fill="x", padx=10, pady=(0, 2))
+        self._startup_var = tk.BooleanVar(value=startup.is_registered())
+        ttk.Checkbutton(
+            opts_frame,
+            text="Run on Windows startup",
+            variable=self._startup_var,
+            command=self._toggle_startup,
+            state="normal" if startup.is_available() else "disabled",
+        ).pack(side="left")
 
         # Profiles list
         list_frame = ttk.LabelFrame(self.root, text="Profiles")
@@ -131,6 +143,12 @@ class MainWindow:
         return self.listbox.get(sel[0]).lstrip("● ").strip()
 
     # ----- actions ---------------------------------------------------------
+    def _toggle_startup(self) -> None:
+        if self._startup_var.get():
+            startup.register()
+        else:
+            startup.unregister()
+
     def browse_dir(self) -> None:
         chosen = filedialog.askdirectory(title="Select your RawAccel folder")
         if not chosen:

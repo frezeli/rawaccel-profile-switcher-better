@@ -12,6 +12,7 @@ import threading
 from .config import Config, migrate_legacy_profiles
 from .gui import MainWindow
 from .tray import TrayIcon
+from . import rawaccel
 
 
 class App:
@@ -49,10 +50,22 @@ class App:
     def _quit(self) -> None:
         self.window.root.after(0, self.window.root.quit)
 
+    def _apply_on_startup(self) -> None:
+        """Silently re-apply the active profile so the driver state is correct."""
+        name = self.config.active_profile
+        if not name or not rawaccel.is_valid_rawaccel_dir(self.config.rawaccel_dir):
+            return
+        try:
+            path = self.window.manager.path_for(name)
+            rawaccel.apply_profile(self.config.rawaccel_dir, path)
+        except Exception:
+            pass
+
     # ----- run -------------------------------------------------------------
     def run(self) -> None:
         tray_thread = threading.Thread(target=self.tray.run, daemon=True)
         tray_thread.start()
+        self.window.root.after(500, self._apply_on_startup)
         try:
             self.window.root.mainloop()
         finally:
