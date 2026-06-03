@@ -77,6 +77,15 @@ def test_path_for_missing_raises(tmp_path):
         mgr.path_for("nope")
 
 
+def test_manager_without_dir_is_safe():
+    # No RawAccel directory set yet: listing is empty, creating is rejected.
+    mgr = ProfileManager(None)
+    assert mgr.list_profiles() == []
+    assert mgr.exists("x") is False
+    with pytest.raises(ProfileError):
+        mgr.create("x")
+
+
 # ----- config persistence --------------------------------------------------
 def test_config_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
@@ -86,6 +95,29 @@ def test_config_roundtrip(tmp_path, monkeypatch):
     loaded = Config.load()
     assert loaded.rawaccel_dir == r"C:\RawAccel"
     assert loaded.active_profile == "Gaming"
+
+
+def test_profiles_dir_lives_in_rawaccel_dir(tmp_path):
+    assert Config(rawaccel_dir="").profiles_dir() is None
+    cfg = Config(rawaccel_dir=str(tmp_path))
+    assert cfg.profiles_dir() == tmp_path / "profiles"
+
+
+def test_migrate_legacy_profiles(tmp_path, monkeypatch):
+    from rawaccel_switcher.config import migrate_legacy_profiles
+
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    legacy = tmp_path / "appdata" / "RawAccelProfileSwitcher" / "profiles"
+    legacy.mkdir(parents=True)
+    (legacy / "op18k.json").write_text('{"old": true}')
+
+    rawaccel_dir = tmp_path / "RawAccel"
+    rawaccel_dir.mkdir()
+    cfg = Config(rawaccel_dir=str(rawaccel_dir))
+    migrate_legacy_profiles(cfg)
+
+    moved = cfg.profiles_dir() / "op18k.json"
+    assert moved.read_text() == '{"old": true}'
 
 
 def test_config_load_missing_returns_defaults(tmp_path, monkeypatch):
@@ -119,22 +151,27 @@ def test_apply_profile_missing_writer(tmp_path):
         rawaccel.apply_profile(tmp_path, profile)
 
 
-def test_apply_profile_copies_to_settings_json(tmp_path, monkeypatch):
+def test_apply_profile_passes_path_to_writer(tmp_path, monkeypatch):
     # Create a fake writer.exe that exits 0.
     writer = tmp_path / rawaccel.WRITER_EXE
     writer.write_text("")
+    profile = tmp_path / "Gaming.json"
+    profile.write_text("{}")
+
+    calls = {}
 
     import subprocess as sp
-    monkeypatch.setattr(
-        sp, "run",
-        lambda *a, **kw: sp.CompletedProcess(a, 0, stdout="", stderr=""),
-    )
 
-    profile = tmp_path / "Gaming.json"
-    profile.write_text('{"hello": "world"}')
+    def fake_run(cmd, **kwargs):
+        calls["cmd"] = cmd
+        return sp.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(sp, "run", fake_run)
+
     rawaccel.apply_profile(tmp_path, profile)
 
-    assert (tmp_path / "settings.json").read_text() == '{"hello": "world"}'
+    # writer.exe must be invoked with the profile's path as its argument.
+    assert calls["cmd"] == [str(writer), str(profile)]
 
 
 def test_current_settings_file(tmp_path):

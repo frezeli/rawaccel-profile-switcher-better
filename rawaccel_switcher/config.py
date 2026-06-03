@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -19,13 +20,31 @@ APP_DIR_NAME = "RawAccelProfileSwitcher"
 
 
 def app_data_dir() -> Path:
-    """Return the per-user directory where config and profiles live."""
+    """Return the per-user directory where the config file lives."""
     base = os.environ.get("APPDATA")
     if base:
         root = Path(base) / APP_DIR_NAME
     else:
         root = Path.home() / f".{APP_DIR_NAME.lower()}"
     return root
+
+
+def migrate_legacy_profiles(config: "Config") -> None:
+    """Move profiles created by older versions into the new location.
+
+    Early builds stored profiles under the app-data folder; they now live
+    inside the RawAccel directory. Copy any old profiles across (without
+    overwriting) so upgrading users keep their slots.
+    """
+    legacy = app_data_dir() / "profiles"
+    target = config.profiles_dir()
+    if target is None or not legacy.is_dir():
+        return
+    target.mkdir(parents=True, exist_ok=True)
+    for src in legacy.glob("*.json"):
+        dst = target / src.name
+        if not dst.exists():
+            shutil.copyfile(src, dst)
 
 
 @dataclass
@@ -40,10 +59,17 @@ class Config:
     def config_path() -> Path:
         return app_data_dir() / "config.json"
 
-    @staticmethod
-    def profiles_dir() -> Path:
-        """Folder that holds the profile ``.json`` files."""
-        return app_data_dir() / "profiles"
+    def profiles_dir(self) -> Path | None:
+        """Folder that holds the profile ``.json`` files.
+
+        Profiles live in a ``profiles`` subfolder of the RawAccel directory
+        so everything stays together and ``writer.exe`` can read them from
+        right next to itself. Returns ``None`` until the RawAccel directory
+        has been set.
+        """
+        if not self.rawaccel_dir:
+            return None
+        return Path(self.rawaccel_dir) / "profiles"
 
     # ----- persistence -----------------------------------------------------
     @classmethod
@@ -65,5 +91,7 @@ class Config:
         """Write config to disk, creating folders as needed."""
         path = self.config_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.profiles_dir().mkdir(parents=True, exist_ok=True)
+        profiles = self.profiles_dir()
+        if profiles is not None:
+            profiles.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")

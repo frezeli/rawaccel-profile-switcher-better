@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 
-from .config import Config
+from .config import Config, migrate_legacy_profiles
 from .gui import MainWindow
 from .tray import TrayIcon
 
@@ -17,7 +17,10 @@ from .tray import TrayIcon
 class App:
     def __init__(self):
         self.config = Config.load()
-        self.config.profiles_dir().mkdir(parents=True, exist_ok=True)
+        migrate_legacy_profiles(self.config)
+        profiles = self.config.profiles_dir()
+        if profiles is not None:
+            profiles.mkdir(parents=True, exist_ok=True)
 
         self.window = MainWindow(self.config, on_profile_applied=self._profile_applied)
         # Start hidden: the app lives in the tray.
