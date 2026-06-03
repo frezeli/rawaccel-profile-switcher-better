@@ -1,13 +1,12 @@
 """Integration with the RawAccel ``writer.exe`` tool.
 
-``writer.exe`` reads ``settings.json`` from its own directory and applies
-it to the RawAccel driver. Switching a profile therefore means: copy the
-profile's ``.json`` over ``settings.json``, then run ``writer.exe``.
+``writer.exe`` takes the path to a settings ``.json`` file as its only
+argument and applies it to the RawAccel driver. Switching a profile
+therefore means running ``writer.exe <path-to-profile.json>``.
 """
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -42,10 +41,7 @@ def current_settings_file(rawaccel_dir: str | Path) -> Path | None:
 
 
 def apply_profile(rawaccel_dir: str | Path, profile_path: str | Path) -> None:
-    """Apply a profile to the driver.
-
-    Copies the profile over ``settings.json`` in the RawAccel directory,
-    then runs ``writer.exe`` (no arguments) so the driver picks it up.
+    """Apply a profile to the driver by running ``writer.exe <profile>``.
 
     Raises :class:`RawAccelError` if the tooling is missing or the writer
     exits with a non-zero status.
@@ -62,15 +58,9 @@ def apply_profile(rawaccel_dir: str | Path, profile_path: str | Path) -> None:
     if not profile_path.is_file():
         raise RawAccelError(f"Profile file not found: {profile_path}")
 
-    settings_json = rawaccel_dir / "settings.json"
-    try:
-        shutil.copyfile(profile_path, settings_json)
-    except OSError as exc:
-        raise RawAccelError(f"Could not write settings.json: {exc}") from exc
-
     try:
         result = subprocess.run(
-            [str(writer)],
+            [str(writer), str(profile_path)],
             cwd=str(rawaccel_dir),
             capture_output=True,
             text=True,
