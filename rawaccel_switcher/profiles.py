@@ -17,33 +17,67 @@ from typing import List
 # RawAccel ships a ``settings.json`` describing the current driver state.
 # When a new profile is created we copy that file as a starting point; if it
 # is not available we fall back to this minimal, driver-valid default
-# (acceleration disabled / 1:1 sensitivity).
+# (acceleration disabled / 1:1 sensitivity). The shape mirrors RawAccel 1.7.x
+# so ``writer.exe`` accepts it.
+def _default_accel_params() -> dict:
+    return {
+        "mode": "noaccel",
+        "Gain / Velocity": True,
+        "inputOffset": 0.0,
+        "outputOffset": 0.0,
+        "acceleration": 0.005,
+        "decayRate": 0.1,
+        "gamma": 1.0,
+        "motivity": 1.5,
+        "exponentClassic": 2.0,
+        "scale": 1.0,
+        "exponentPower": 0.05,
+        "limit": 1.5,
+        "syncSpeed": 5.0,
+        "smooth": 0.5,
+        "Cap / Jump": {"x": 15.0, "y": 1.5},
+        "Cap mode": "output",
+        "data": [],
+    }
+
+
 DEFAULT_SETTINGS = {
-    "version": "1.6.1",
+    "version": "1.7.0",
+    "defaultDeviceConfig": {
+        "disable": False,
+        "Use constant time interval based on polling rate": False,
+        "DPI (normalizes input speed unit: counts/ms -> in/s)": 0,
+        "Polling rate Hz (keep at 0 for automatic adjustment)": 0,
+    },
     "profiles": [
         {
-            "name": "Default",
-            "Sensitivity multiplier": 1.0,
-            "Whole/combined accel (set false for 'by component' mode)": True,
+            "name": "default",
+            "Stretches domain for horizontal vs vertical inputs": {"x": 1.0, "y": 1.0},
+            "Stretches accel range for horizontal vs vertical inputs": {"x": 1.0, "y": 1.0},
+            "Whole or horizontal accel parameters": _default_accel_params(),
+            "Vertical accel parameters": _default_accel_params(),
+            "Input speed calculation parameters": {
+                "Whole/combined accel (set false for 'by component' mode)": True,
+                "lpNorm": 2.0,
+                "Time in ms after which an input is weighted at half its original value.": 0.0,
+                "Time in ms after which scale is weighted at half its original value.": 0.0,
+                "Time in ms after which an output is weighted at half its original value.": 0.0,
+            },
+            "Output DPI": 1000.0,
+            "Y/X output DPI ratio (vertical sens multiplier)": 1.0,
+            "L/R output DPI ratio (left sens multiplier)": 1.0,
+            "U/D output DPI ratio (up sens multiplier)": 1.0,
+            "Degrees of rotation": 0.0,
+            "Degrees of angle snapping": 0.0,
+            "Input Speed Cap": 0.0,
         }
     ],
+    "devices": [],
 }
 
 # Characters that are not allowed in a profile name (they would be unsafe or
 # invalid as file names on Windows).
 _INVALID_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-
-
-# The most-used RawAccel values, shown when a profile is selected. Each entry
-# is a (display label, case-insensitive substrings to look for) pair. Matching
-# by substring keeps this working across RawAccel settings.json versions.
-_SUMMARY_FIELDS = [
-    ("Sensitivity", ["sensitivity multiplier"]),
-    ("Y/X ratio", ["y/x"]),
-    ("Rotation", ["degrees of rotation"]),
-    ("Angle snapping", ["degrees of angle snapping", "angle snapping"]),
-    ("Speed cap", ["input speed cap", "speed cap"]),
-]
 
 
 def _format_value(value: object) -> str:
@@ -54,29 +88,96 @@ def _format_value(value: object) -> str:
     return str(value)
 
 
-def summarize_profile(data: dict) -> List[tuple]:
-    """Return ``(label, value)`` pairs for the main RawAccel settings.
+def _is_one(value: object) -> bool:
+    try:
+        return float(value) == 1.0
+    except (TypeError, ValueError):
+        return False
 
-    RawAccel keeps per-profile values inside a ``profiles`` list, so we read
-    the first entry; unknown shapes fall back to the top-level object. Only
-    recognised fields are returned, making this safe across versions.
-    """
-    source = data
+
+def _first_profile(data: dict):
+    """Return the profile object holding the per-profile settings."""
     if isinstance(data, dict):
         profiles = data.get("profiles")
         if isinstance(profiles, list) and profiles and isinstance(profiles[0], dict):
-            source = profiles[0]
-    if not isinstance(source, dict):
+            return profiles[0]
+        return data
+    return None
+
+
+def _accel_mode(profile: dict) -> str | None:
+    """Return the whole/horizontal acceleration mode (e.g. 'noaccel')."""
+    for key, value in profile.items():
+        kl = str(key).lower()
+        if "accel parameters" in kl and "vertical" not in kl and isinstance(value, dict):
+            for mode_key, mode_val in value.items():
+                if str(mode_key).lower() == "mode":
+                    return str(mode_val)
+    return None
+
+
+def summarize_profile(data: dict) -> List[tuple]:
+    """Return ``(label, value)`` pairs describing a RawAccel profile.
+
+    Tuned for the RawAccel 1.7 ``settings.json`` layout (Output DPI, per-axis
+    ratios, nested accel parameters) while still recognising the older
+    ``Sensitivity multiplier`` key. Matching is by substring so it tolerates
+    small wording differences between versions. Per-axis ratios are only shown
+    when they differ from the 1:1 default, to keep the panel readable.
+    """
+    profile = _first_profile(data)
+    if not isinstance(profile, dict):
         return []
 
-    lowered = {str(k).lower(): v for k, v in source.items()}
+    lowered = {str(k).lower(): v for k, v in profile.items()}
+
+    def find(needle: str):
+        for lk, v in lowered.items():
+            if needle in lk and not isinstance(v, (dict, list)):
+                return v
+        return None
+
     summary: List[tuple] = []
-    for label, needles in _SUMMARY_FIELDS:
-        for needle in needles:
-            hit = next((v for lk, v in lowered.items() if needle in lk), None)
-            if hit is not None and not isinstance(hit, (dict, list)):
-                summary.append((label, _format_value(hit)))
-                break
+
+    mode = _accel_mode(profile)
+    if mode:
+        summary.append(("Accel mode", mode))
+
+    # Sensitivity: RawAccel 1.7 uses "Output DPI"; older builds used a
+    # "Sensitivity multiplier". Match the exact DPI key so it isn't confused
+    # with the per-axis "... output DPI ratio" entries.
+    dpi = lowered.get("output dpi")
+    if dpi is not None:
+        summary.append(("Output DPI", _format_value(dpi)))
+    else:
+        sens = find("sensitivity multiplier")
+        if sens is not None:
+            summary.append(("Sensitivity", _format_value(sens)))
+
+    yx = find("y/x")
+    if yx is not None:
+        summary.append(("Vertical (Y/X)", _format_value(yx)))
+
+    lr = find("l/r")
+    if lr is not None and not _is_one(lr):
+        summary.append(("Left (L/R)", _format_value(lr)))
+
+    ud = find("u/d")
+    if ud is not None and not _is_one(ud):
+        summary.append(("Up (U/D)", _format_value(ud)))
+
+    rotation = find("degrees of rotation")
+    if rotation is not None:
+        summary.append(("Rotation", f"{_format_value(rotation)}°"))
+
+    snapping = find("angle snapping")
+    if snapping is not None:
+        summary.append(("Angle snapping", f"{_format_value(snapping)}°"))
+
+    cap = find("input speed cap")
+    if cap is not None:
+        summary.append(("Speed cap", _format_value(cap)))
+
     return summary
 
 
