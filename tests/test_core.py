@@ -97,24 +97,40 @@ def test_read_returns_json(tmp_path):
     assert "profiles" in mgr.read("Gaming")
 
 
-def test_summarize_profile_reads_first_profile():
+def test_summarize_profile_rawaccel_17():
+    # Mirrors the real RawAccel 1.7.0 settings.json layout.
     data = {
+        "version": "1.7.0",
         "profiles": [
             {
-                "name": "Default",
-                "Sensitivity multiplier": 1.5,
-                "Y/X ratio (vertical sens)": 1.0,
+                "name": "default",
+                "Whole or horizontal accel parameters": {"mode": "noaccel", "scale": 1.0},
+                "Vertical accel parameters": {"mode": "natural"},
+                "Output DPI": 1000.0,
+                "Y/X output DPI ratio (vertical sens multiplier)": 1.0,
+                "L/R output DPI ratio (left sens multiplier)": 1.0,
+                "U/D output DPI ratio (up sens multiplier)": 1.5,
                 "Degrees of rotation": 5.0,
-                "Acceleration": {"nested": "ignored"},
+                "Degrees of angle snapping": 0.0,
+                "Input Speed Cap": 0.0,
             }
-        ]
+        ],
     }
     summary = dict(summarize_profile(data))
-    assert summary["Sensitivity"] == "1.5"
-    assert summary["Y/X ratio"] == "1"
-    assert summary["Rotation"] == "5"
-    # Nested objects are not surfaced as scalar values.
-    assert "Acceleration" not in summary
+    assert summary["Accel mode"] == "noaccel"           # horizontal/whole, not vertical
+    assert summary["Output DPI"] == "1000"               # exact key, not a ratio
+    assert summary["Vertical (Y/X)"] == "1"
+    assert summary["Rotation"] == "5°"
+    assert summary["Angle snapping"] == "0°"
+    assert summary["Speed cap"] == "0"
+    # L/R is default (1.0) so it's hidden; U/D differs so it's shown.
+    assert "Left (L/R)" not in summary
+    assert summary["Up (U/D)"] == "1.5"
+
+
+def test_summarize_profile_older_sensitivity_key():
+    data = {"profiles": [{"name": "x", "Sensitivity multiplier": 1.25}]}
+    assert dict(summarize_profile(data))["Sensitivity"] == "1.25"
 
 
 def test_summarize_profile_handles_unknown_shape():
