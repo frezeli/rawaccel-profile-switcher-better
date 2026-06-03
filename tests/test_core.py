@@ -119,6 +119,24 @@ def test_apply_profile_missing_writer(tmp_path):
         rawaccel.apply_profile(tmp_path, profile)
 
 
+def test_apply_profile_copies_to_settings_json(tmp_path, monkeypatch):
+    # Create a fake writer.exe that exits 0.
+    writer = tmp_path / rawaccel.WRITER_EXE
+    writer.write_text("")
+
+    import subprocess as sp
+    monkeypatch.setattr(
+        sp, "run",
+        lambda *a, **kw: sp.CompletedProcess(a, 0, stdout="", stderr=""),
+    )
+
+    profile = tmp_path / "Gaming.json"
+    profile.write_text('{"hello": "world"}')
+    rawaccel.apply_profile(tmp_path, profile)
+
+    assert (tmp_path / "settings.json").read_text() == '{"hello": "world"}'
+
+
 def test_current_settings_file(tmp_path):
     assert rawaccel.current_settings_file(tmp_path) is None
     (tmp_path / "settings.json").write_text("{}")
