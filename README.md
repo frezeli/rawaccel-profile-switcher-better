@@ -150,4 +150,4 @@ Tests cover all non-GUI logic (profile management, RawAccel integration).
 
 ## License
 
-[MIT](LICENSE) — version **0.1.2**
+[MIT](LICENSE) — version **0.1.3**
