@@ -13,6 +13,7 @@ from rawaccel_switcher.config import Config  # noqa: E402
 from rawaccel_switcher.profiles import (  # noqa: E402
     ProfileError,
     ProfileManager,
+    summarize_profile,
     validate_name,
 )
 
@@ -75,6 +76,50 @@ def test_path_for_missing_raises(tmp_path):
     mgr = ProfileManager(tmp_path / "profiles")
     with pytest.raises(ProfileError):
         mgr.path_for("nope")
+
+
+def test_overwrite_requires_template(tmp_path):
+    mgr = ProfileManager(tmp_path / "profiles")
+    mgr.create("Gaming")
+    # No template -> refuse rather than wipe the slot.
+    with pytest.raises(ProfileError):
+        mgr.overwrite("Gaming", None)
+    # With a template, contents are replaced.
+    template = tmp_path / "settings.json"
+    template.write_text('{"new": 1}')
+    mgr.overwrite("Gaming", template)
+    assert json.loads(mgr.path_for("Gaming").read_text()) == {"new": 1}
+
+
+def test_read_returns_json(tmp_path):
+    mgr = ProfileManager(tmp_path / "profiles")
+    mgr.create("Gaming")
+    assert "profiles" in mgr.read("Gaming")
+
+
+def test_summarize_profile_reads_first_profile():
+    data = {
+        "profiles": [
+            {
+                "name": "Default",
+                "Sensitivity multiplier": 1.5,
+                "Y/X ratio (vertical sens)": 1.0,
+                "Degrees of rotation": 5.0,
+                "Acceleration": {"nested": "ignored"},
+            }
+        ]
+    }
+    summary = dict(summarize_profile(data))
+    assert summary["Sensitivity"] == "1.5"
+    assert summary["Y/X ratio"] == "1"
+    assert summary["Rotation"] == "5"
+    # Nested objects are not surfaced as scalar values.
+    assert "Acceleration" not in summary
+
+
+def test_summarize_profile_handles_unknown_shape():
+    assert summarize_profile({"unrelated": "value"}) == []
+    assert summarize_profile([]) == []
 
 
 def test_manager_without_dir_is_safe():
