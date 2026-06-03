@@ -30,24 +30,49 @@ it to the driver by running RawAccel's `writer.exe` for you.
 
 ---
 
+## How profiles work
+
+RawAccel is a **driver**. The RawAccel GUI (`rawaccel.exe`) is just where you
+tune your curves — when you click **Apply** it saves them to `settings.json` and
+loads them into the driver. The driver keeps running after you close the GUI.
+
+This app saves snapshots of those settings as **profiles** and switches between
+them with `writer.exe`, which talks straight to the driver. So **you don't need
+RawAccel open to switch profiles** — set up your curves once, close RawAccel, and
+flip profiles from the tray.
+
 ## First-time setup
 
 1. Click the tray icon and choose **Open settings**.
 2. Click **Browse…** and select your **RawAccel folder** (the one that contains
    `writer.exe`).
-3. Click **New** to create your first profile.
-4. Select a profile and click **Set active** (or pick it from the tray menu).
+3. In RawAccel, tune your settings and click **Apply**. Then in this app click
+   **Save current…** and name the profile (e.g. *Gaming*).
+4. Repeat step 3 for each setup you want (e.g. *Desktop*, *FPS*).
+5. Select a profile and click **Set active** (or pick it from the tray menu) to
+   switch instantly.
 
-That's it. New profiles start from your current RawAccel settings, so you can tweak
-each one in the RawAccel app and re-save it as needed.
+Selecting a profile shows its key values (sensitivity, rotation, etc.) so you can
+tell them apart. To change a profile later, re-tune in RawAccel, click Apply, then
+select the profile and hit **Update**.
+
+> **Note:** if RawAccel's own window is open when you switch, it won't visually
+> refresh (it only reads `settings.json` on startup) — but your mouse feel changes
+> immediately. The switch always affects the live driver.
 
 ### Where are my profiles stored?
 
+Inside your RawAccel folder, so they live next to `writer.exe`:
+
 ```
-%APPDATA%\RawAccelProfileSwitcher\
-├── config.json        # your settings (RawAccel folder, active profile)
-└── profiles\          # one .json file per profile
+<your RawAccel folder>\
+├── writer.exe
+├── settings.json       # RawAccel's current settings
+└── profiles\           # one .json file per profile (created by this app)
 ```
+
+Your app preferences (RawAccel folder, active profile) live in
+`%APPDATA%\RawAccelProfileSwitcher\config.json`.
 
 ---
 
@@ -83,11 +108,12 @@ The finished app lands at `dist\RawAccelProfileSwitcher.exe`.
 
 ## How it works
 
-| Action            | What happens                                                        |
-| ----------------- | ------------------------------------------------------------------- |
-| Create profile    | Writes a new `<name>.json` (copied from your current settings).     |
-| Rename / Delete   | Renames or removes that `.json` file.                               |
-| **Set active**    | Runs `writer.exe <profile>.json`, which applies it to the driver.   |
+| Action            | What happens                                                              |
+| ----------------- | ------------------------------------------------------------------------- |
+| **Save current…** | Snapshots RawAccel's `settings.json` into a new `<name>.json` profile.    |
+| **Update**        | Re-snapshots your current RawAccel settings over the selected profile.    |
+| Rename / Delete   | Renames or removes that `.json` file.                                     |
+| **Set active**    | Runs `writer.exe <profile>.json`, which applies it straight to the driver. |
 
 ---
 
