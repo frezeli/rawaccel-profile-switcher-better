@@ -53,26 +53,35 @@ def validate_name(name: str) -> str:
 
 
 class ProfileManager:
-    """Create, list, rename and delete profile ``.json`` files."""
+    """Create, list, rename and delete profile ``.json`` files.
 
-    def __init__(self, profiles_dir: Path):
-        self.profiles_dir = Path(profiles_dir)
+    ``profiles_dir`` may be ``None`` when the RawAccel directory has not been
+    set yet; in that case listing returns nothing and any operation that
+    needs the folder raises a clear :class:`ProfileError`.
+    """
+
+    def __init__(self, profiles_dir: Path | None):
+        self.profiles_dir = Path(profiles_dir) if profiles_dir else None
 
     def _path(self, name: str) -> Path:
+        if self.profiles_dir is None:
+            raise ProfileError("Set your RawAccel directory first.")
         return self.profiles_dir / f"{name}.json"
 
     def ensure_dir(self) -> None:
+        if self.profiles_dir is None:
+            raise ProfileError("Set your RawAccel directory first.")
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
 
     def list_profiles(self) -> List[str]:
         """Return profile names sorted case-insensitively."""
-        if not self.profiles_dir.exists():
+        if self.profiles_dir is None or not self.profiles_dir.exists():
             return []
         names = [p.stem for p in self.profiles_dir.glob("*.json")]
         return sorted(names, key=str.lower)
 
     def exists(self, name: str) -> bool:
-        return self._path(name).exists()
+        return self.profiles_dir is not None and self._path(name).exists()
 
     def path_for(self, name: str) -> Path:
         """Return the file path for a profile, raising if it is missing."""
